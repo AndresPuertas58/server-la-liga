@@ -27,7 +27,7 @@ def obtener_usuario_desde_token():
             print("❌ Usuario no encontrado en BD")
             return None, {"error": "Usuario no válido"}, 403
         
-        print(f"✅ Usuario válido: {usuario.email}, Role: {usuario.role.value}")
+        print(f"✅ Usuario válido: {usuario.email}, Role: {usuario.role}")
         return usuario, None, 200
         
     except jwt.ExpiredSignatureError:

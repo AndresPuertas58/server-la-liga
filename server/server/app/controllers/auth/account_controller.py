@@ -1,24 +1,10 @@
-# app/controllers/account_controller.py
-from flask_restx import Namespace, Resource, fields
+from flask_restx import Resource
 from flask import request
-from app.services.account_service import AccountService
+from app.services.auth.account_service import AccountService
 from app.utils.auth_utils import obtener_usuario_desde_token
 
-# Namespace para gestión de cuenta
-account_ns = Namespace('account', description='Operaciones de gestión de cuenta')
-
-# Modelos para Swagger
-cambio_contrasena_model = account_ns.model('CambioContrasena', {
-    'current_password': fields.String(required=True, description='Contraseña actual'),
-    'new_password': fields.String(required=True, description='Nueva contraseña'),
-    'confirm_password': fields.String(required=True, description='Confirmación de nueva contraseña')
-})
-
-cambio_correo_model = account_ns.model('CambioCorreo', {
-    'password': fields.String(required=True, description='Contraseña actual para verificación'),
-    'new_email': fields.String(required=True, description='Nuevo correo electrónico'),
-    'confirm_email': fields.String(required=True, description='Confirmación del nuevo correo')
-})
+# Importar namespace y modelos
+from . import account_ns, cambio_contrasena_model, cambio_correo_model
 
 # Endpoint para cambio de contraseña
 @account_ns.route('/cambiar-contrasena')

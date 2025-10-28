@@ -42,12 +42,11 @@ class AuthLoginService:
                 'user': {
                     'id': user.id,
                     'email': user.email,
-                    'is_profile_completed': user.is_profile_completed,
                     'name_user': user.name_user,
-                    # 'fotoPerfil': user.urlphotoperfil
+                    'fotoPerfil': user.urlphotoperfil
                 }
             }))
-
+            
             response.set_cookie(
                 'liga_token',
                 token,

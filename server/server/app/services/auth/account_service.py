@@ -1,10 +1,7 @@
-# app/services/account_service.py
 from app.models.user_model import User
 from app.utils.database import db
-from werkzeug.security import generate_password_hash, check_password_hash
 import re
 import bcrypt
-from flask import make_response, jsonify, request
 
 class AccountService:
     @staticmethod
@@ -61,7 +58,7 @@ class AccountService:
                     input_pw = current_password.encode('utf-8')
                     stored_pw = user.password.encode('utf-8')
                     
-                    print(f"   - Contraseña a verificar: {current_password[:2]}...")  # Solo primeros 2 chars
+                    print(f"   - Contraseña a verificar: {current_password[:2]}...")
                     print(f"   - Hash almacenado (inicio): {stored_pw[:20]}...")
                     
                     if not bcrypt.checkpw(input_pw, stored_pw):
@@ -169,8 +166,10 @@ class AccountService:
             input_pw = data['password'].encode('utf-8')
             stored_pw = user.password.encode('utf-8')
 
+            # ✅ CORREGIDO: Usar ValueError en lugar de make_response
             if not bcrypt.checkpw(input_pw, stored_pw):
-                return make_response(jsonify({'message': 'La contraseña es incorrecta'}), 401)
+                print("❌ ERROR: Contraseña incorrecta")
+                raise ValueError("La contraseña es incorrecta")
             
             print("✅ Contraseña verificada correctamente")
             

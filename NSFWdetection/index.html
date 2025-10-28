@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador NSFW</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.8;
+        }
+
+        .upload-area {
+            padding: 40px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .drop-zone {
+            border: 3px dashed #3498db;
+            border-radius: 10px;
+            padding: 60px 20px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .drop-zone:hover {
+            border-color: #2980b9;
+            background: #e3f2fd;
+        }
+
+        .drop-zone.active {
+            border-color: #27ae60;
+            background: #e8f5e8;
+        }
+
+        .drop-zone i {
+            font-size: 48px;
+            color: #3498db;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .results {
+            padding: 30px;
+            display: none;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #3498db;
+        }
+
+        .result-card.approved {
+            border-left-color: #27ae60;
+            background: #e8f5e8;
+        }
+
+        .result-card.rejected {
+            border-left-color: #e74c3c;
+            background: #fde8e8;
+        }
+
+        .status {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .status.approved {
+            color: #27ae60;
+        }
+
+        .status.rejected {
+            color: #e74c3c;
+        }
+
+        .image-preview {
+            max-width: 300px;
+            max-height: 200px;
+            border-radius: 10px;
+            margin: 15px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .details {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .violations {
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+
+        .violation-item {
+            background: #fde8e8;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #e74c3c;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .batch-results {
+            margin-top: 20px;
+        }
+
+        .batch-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .batch-item.approved {
+            border-left-color: #27ae60;
+        }
+
+        .batch-item.rejected {
+            border-left-color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔞 Validador NSFW</h1>
+            <p>Verifica que tus imágenes sean apropiadas antes de subirlas</p>
+        </div>
+
+        <div class="upload-area">
+            <h2>Selecciona o arrastra tus imágenes</h2>
+            
+            <div class="drop-zone" id="dropZone">
+                <div>📁</div>
+                <h3>Arrastra imágenes aquí o haz clic para seleccionar</h3>
+                <p>Formatos soportados: JPG, PNG, WebP (Máx. 10MB)</p>
+            </div>
+
+            <input type="file" id="fileInput" class="file-input" multiple accept="image/*">
+            
+            <button class="btn" id="uploadBtn" disabled>Validar Imágenes</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Validando imágenes...</p>
+        </div>
+
+        <div class="results" id="results">
+            <h2>Resultados de la Validación</h2>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        class NSFWValidatorUI {
+            constructor() {
+                this.dropZone = document.getElementById('dropZone');
+                this.fileInput = document.getElementById('fileInput');
+                this.uploadBtn = document.getElementById('uploadBtn');
+                this.loading = document.getElementById('loading');
+                this.results = document.getElementById('results');
+                this.resultsContent = document.getElementById('resultsContent');
+                
+                this.selectedFiles = [];
+                this.apiUrl = 'http://localhost:8000'; // Cambia si tu API está en otro puerto
+                
+                this.initEventListeners();
+            }
+
+            initEventListeners() {
+                // Click en drop zone
+                this.dropZone.addEventListener('click', () => {
+                    this.fileInput.click();
+                });
+
+                // Selección de archivos
+                this.fileInput.addEventListener('change', (e) => {
+                    this.handleFiles(e.target.files);
+                });
+
+                // Drag and drop
+                this.dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.dropZone.classList.add('active');
+                });
+
+                this.dropZone.addEventListener('dragleave', () => {
+                    this.dropZone.classList.remove('active');
+                });
+
+                this.dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dropZone.classList.remove('active');
+                    this.handleFiles(e.dataTransfer.files);
+                });
+
+                // Botón de upload
+                this.uploadBtn.addEventListener('click', () => {
+                    this.validateImages();
+                });
+            }
+
+            handleFiles(files) {
+                this.selectedFiles = Array.from(files).filter(file => {
+                    // Validar tipo de archivo
+                    if (!file.type.startsWith('image/')) {
+                        alert(`❌ ${file.name} no es una imagen válida`);
+                        return false;
+                    }
+
+                    // Validar tamaño (10MB)
+                    if (file.size > 10 * 1024 * 1024) {
+                        alert(`❌ ${file.name} es demasiado grande (máximo 10MB)`);
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                if (this.selectedFiles.length > 0) {
+                    this.uploadBtn.disabled = false;
+                    this.dropZone.innerHTML = `
+                        <div>✅</div>
+                        <h3>${this.selectedFiles.length} imagen(es) seleccionada(s)</h3>
+                        <p>Haz clic en "Validar Imágenes" para continuar</p>
+                    `;
+                }
+            }
+
+            async validateImages() {
+                this.showLoading();
+                this.hideResults();
+
+                try {
+                    let response;
+                    
+                    if (this.selectedFiles.length === 1) {
+                        // Validación individual
+                        response = await this.validateSingleImage(this.selectedFiles[0]);
+                    } else {
+                        // Validación por lotes
+                        response = await this.validateBatchImages(this.selectedFiles);
+                    }
+
+                    this.displayResults(response);
+                } catch (error) {
+                    this.displayError(error);
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async validateSingleImage(file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(`${this.apiUrl}/validate`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${await response.text()}`);
+                }
+
+                return await response.json();
+            }
+
+            async validateBatchImages(files) {
+                const formData = new FormData();
+                
+                files.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                const response = await fetch(`${this.apiUrl}/batch-validate`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${await response.text()}`);
+                }
+
+                return await response.json();
+            }
+
+            displayResults(data) {
+                this.resultsContent.innerHTML = '';
+
+                if (data.results) {
+                    // Resultados por lotes
+                    this.displayBatchResults(data);
+                } else {
+                    // Resultado individual
+                    this.displaySingleResult(data);
+                }
+
+                this.showResults();
+            }
+
+            displaySingleResult(result) {
+                const isApproved = result.validation_passed;
+                const analysis = result.result;
+                
+                // Crear preview de imagen
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imagePreview = document.createElement('img');
+                    imagePreview.src = e.target.result;
+                    imagePreview.className = 'image-preview';
+                    imagePreview.alt = result.filename;
+
+                    const resultCard = document.createElement('div');
+                    resultCard.className = `result-card ${isApproved ? 'approved' : 'rejected'}`;
+                    
+                    resultCard.innerHTML = `
+                        <div class="status ${isApproved ? 'approved' : 'rejected'}">
+                            ${isApproved ? '✅ APROBADA' : '❌ RECHAZADA'}
+                        </div>
+                        <div class="detail-item">
+                            <strong>Archivo:</strong>
+                            <span>${result.filename}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Confianza Segura:</strong>
+                            <span>${(analysis.safe_confidence * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Confianza NSFW:</strong>
+                            <span>${(analysis.nsfw_confidence * 100).toFixed(1)}%</span>
+                        </div>
+                    `;
+
+                    resultCard.prepend(imagePreview);
+
+                    // Agregar análisis detallado
+                    if (analysis.image_analysis) {
+                        const details = document.createElement('div');
+                        details.className = 'details';
+                        details.innerHTML = '<strong>Análisis de Imagen:</strong>';
+                        
+                        for (const [key, value] of Object.entries(analysis.image_analysis)) {
+                            const item = document.createElement('div');
+                            item.className = 'detail-item';
+                            item.innerHTML = `
+                                <span>${this.formatKey(key)}:</span>
+                                <span>${this.formatValue(key, value)}</span>
+                            `;
+                            details.appendChild(item);
+                        }
+                        
+                        resultCard.appendChild(details);
+                    }
+
+                    // Agregar violaciones si las hay
+                    if (analysis.violations && analysis.violations.length > 0) {
+                        const violationsDiv = document.createElement('div');
+                        violationsDiv.className = 'violations';
+                        violationsDiv.innerHTML = '<strong>Problemas detectados:</strong>';
+                        
+                        analysis.violations.forEach(violation => {
+                            const violationItem = document.createElement('div');
+                            violationItem.className = 'violation-item';
+                            violationItem.textContent = violation;
+                            violationsDiv.appendChild(violationItem);
+                        });
+                        
+                        resultCard.appendChild(violationsDiv);
+                    }
+
+                    this.resultsContent.appendChild(resultCard);
+                };
+
+                reader.readAsDataURL(this.selectedFiles[0]);
+            }
+
+            displayBatchResults(data) {
+                const summary = document.createElement('div');
+                summary.className = 'result-card';
+                summary.innerHTML = `
+                    <div class="status">📊 Resumen del Lote</div>
+                    <div class="detail-item">
+                        <strong>Total procesadas:</strong>
+                        <span>${data.processed_count}</span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Aprobadas:</strong>
+                        <span style="color: #27ae60">${data.approved_count}</span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Rechazadas:</strong>
+                        <span style="color: #e74c3c">${data.rejected_count}</span>
+                    </div>
+                `;
+                
+                this.resultsContent.appendChild(summary);
+
+                const batchResults = document.createElement('div');
+                batchResults.className = 'batch-results';
+                
+                data.results.forEach((result, index) => {
+                    const file = this.selectedFiles[index];
+                    const batchItem = document.createElement('div');
+                    batchItem.className = `batch-item ${result.validation_passed ? 'approved' : 'rejected'}`;
+                    
+                    batchItem.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${result.filename}</strong>
+                                <div style="margin-top: 5px;">
+                                    <span style="color: ${result.validation_passed ? '#27ae60' : '#e74c3c'}">
+                                        ${result.validation_passed ? '✅ Aprobada' : '❌ Rechazada'}
+                                    </span>
+                                    ${result.result ? ` - ${(result.result.safe_confidence * 100).toFixed(1)}% seguro` : ''}
+                                </div>
+                            </div>
+                            ${result.validation_passed ? '🎉' : '⚠️'}
+                        </div>
+                    `;
+
+                    batchResults.appendChild(batchItem);
+                });
+                
+                this.resultsContent.appendChild(batchResults);
+            }
+
+            displayError(error) {
+                this.resultsContent.innerHTML = `
+                    <div class="result-card rejected">
+                        <div class="status rejected">❌ Error</div>
+                        <p>Ocurrió un error al validar las imágenes:</p>
+                        <p><strong>${error.message}</strong></p>
+                        <p>Verifica que el servicio de validación esté ejecutándose en http://localhost:8000</p>
+                    </div>
+                `;
+                this.showResults();
+            }
+
+            showLoading() {
+                this.loading.style.display = 'block';
+                this.uploadBtn.disabled = true;
+            }
+
+            hideLoading() {
+                this.loading.style.display = 'none';
+            }
+
+            showResults() {
+                this.results.style.display = 'block';
+            }
+
+            hideResults() {
+                this.results.style.display = 'none';
+            }
+
+            formatKey(key) {
+                const words = key.split('_');
+                return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            }
+
+            formatValue(key, value) {
+                if (key.includes('percentage') || key.includes('confidence')) {
+                    return `${(value * 100).toFixed(1)}%`;
+                }
+                if (key.includes('size') && key.includes('kb')) {
+                    return `${value.toFixed(1)} KB`;
+                }
+                return value;
+            }
+        }
+
+        // Inicializar la aplicación cuando se carga la página
+        document.addEventListener('DOMContentLoaded', () => {
+            new NSFWValidatorUI();
+        });
+    </script>
+</body>
+</html>

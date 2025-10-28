@@ -260,11 +260,16 @@ def configure_api(app):
 def register_namespaces(api):
     """Registra todos los namespaces de la API"""
     
-    # from app.controllers.auth.check_controller import auth_ns
-    from app.controllers.auth.register_controller import auth_ns
-    from app.controllers.auth.login_controller import auth_ns
+    # Importar namespaces
+    from app.controllers.auth import auth_ns, player_ns, account_ns, posts_ns, cancha_ns, reserva_ns
 
+    # Registrar namespaces
+    api.add_namespace(account_ns, path='/account')
     api.add_namespace(auth_ns, path='/auth')
+    api.add_namespace(player_ns, path='/player')
+    api.add_namespace(posts_ns, path='/posts')
+    api.add_namespace(cancha_ns, path='/cancha')
+    api.add_namespace(reserva_ns, path='/reserva') 
     
 
 
