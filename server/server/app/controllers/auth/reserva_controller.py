@@ -47,31 +47,21 @@ class CrearReservaController(Resource):
             traceback.print_exc()
             return {"error": "Error interno del servidor"}, 500
 
-@reserva_ns.route('/ocupados')
+@reserva_ns.route('/ocupados/<int:cancha_id>/<string:fecha>')
 class HorariosOcupadosController(Resource):
-    @reserva_ns.doc(params={
-        'cancha_id': {'description': 'ID de la cancha', 'required': True, 'type': 'integer'},
-        'fecha': {'description': 'Fecha en formato YYYY-MM-DD', 'required': True}
-    })
     @reserva_ns.response(200, 'Horarios ocupados obtenidos', horarios_ocupados_response)
     @reserva_ns.response(400, 'Parámetros inválidos', error_response_model)
     @reserva_ns.response(500, 'Error interno del servidor', error_response_model)
-    def get(self):
-        """Obtener horarios ocupados para una cancha en una fecha específica"""
-        print("🎯 Llegó request a /reserva/ocupados GET")
+    def get(self, cancha_id, fecha):
+        """Obtener horarios ocupados para una cancha en una fecha específica (por ruta)"""
+        print(f"🎯 Llegó request a /reserva/ocupados/{cancha_id}/{fecha} GET")
         
-        cancha_id = request.args.get('cancha_id', type=int)
-        fecha_str = request.args.get('fecha')
-
-        if not cancha_id or not fecha_str:
-            return {"error": "Parámetros 'cancha_id' y 'fecha' son requeridos"}, 400
-
         try:
-            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+            fecha_date = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
             return {"error": "Formato de fecha inválido (debe ser YYYY-MM-DD)"}, 400
 
-        reservas = Reserva.query.filter_by(cancha_id=cancha_id, fecha=fecha).all()
+        reservas = Reserva.query.filter_by(cancha_id=cancha_id, fecha=fecha_date).all()
         horas_ocupadas = [r.hora.strftime('%H:%M') for r in reservas]
 
         return {"horarios_ocupados": horas_ocupadas}, 200

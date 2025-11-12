@@ -1,4 +1,9 @@
-from flask import session
+import os
+import uuid
+import json
+from PIL import Image
+from flask import current_app, url_for
+from werkzeug.utils import secure_filename
 from datetime import datetime, time, timedelta
 from app.models.cancha import Cancha
 from app.models.imagen import Imagen
@@ -15,18 +20,16 @@ import calendar
 class CanchaService:
 
     @staticmethod
-    def crear_cancha_con_todo(data):
+    def crear_cancha_con_todo(data, imagenes_files=None):
         print("🔍 Iniciando creación de cancha en servicio...")
         
         usuario, error, status = obtener_usuario_desde_token()
-        print(f"👤 Usuario desde token: {usuario}")
-        
         if error:
-            print("❌ Usuario no autenticado")
             raise PermissionError("Usuario no autenticado")
         
-        print(f"✅ Usuario autenticado: {usuario.email}, Role: {usuario.role}")
+        print(f"✅ Usuario autenticado: {usuario.email}")
 
+        # Crear cancha
         cancha = Cancha(
             nombre=data['nombre'],
             tipo=data['tipo'],
@@ -43,49 +46,202 @@ class CanchaService:
         )
 
         db.session.add(cancha)
-        db.session.flush()  # Para obtener el ID sin hacer commit
+        db.session.flush()
 
-        # Imágenes
+        # ✅ MANEJO DE IMÁGENES - Guardar como WebP
+        urls_imagenes = []
+        if imagenes_files:
+            for i, imagen_file in enumerate(imagenes_files):
+                if imagen_file and imagen_file.filename:
+                    url_imagen = CanchaService._guardar_y_convertir_a_webp(imagen_file, cancha.id)
+                    if url_imagen:
+                        urls_imagenes.append(url_imagen)
+                        imagen = Imagen(cancha_id=cancha.id, url_imagen=url_imagen, orden=i)
+                        db.session.add(imagen)
+                        print(f"📸 Imagen convertida a WebP: {url_imagen}")
+
+        # URLs de imágenes (compatibilidad)
         for i, url in enumerate(data.get('imagenes', [])):
-            imagen = Imagen(cancha_id=cancha.id, url_imagen=url, orden=i)
-            db.session.add(imagen)
-            print(f"📸 Imagen recibida {url}")
+            if url and url not in urls_imagenes:
+                imagen = Imagen(cancha_id=cancha.id, url_imagen=url, orden=len(urls_imagenes) + i)
+                db.session.add(imagen)
 
-        # HORARIOS - NUEVO FORMATO CON RANGOS
-        for horario in data.get('horarios', []):
-            h = HorarioCancha(
-                cancha_id=cancha.id,
-                dia_semana=horario['dia_semana'],
-                hora_inicio=datetime.strptime(horario['hora_inicio'], '%H:%M').time(),
-                hora_fin=datetime.strptime(horario['hora_fin'], '%H:%M').time(),
-                intervalo_minutos=horario.get('intervalo_minutos', 60),
-                disponible=horario.get('disponible', True)
-            )
-            db.session.add(h)
-            print(f"🕒 Horario agregado: {horario['dia_semana']} {horario['hora_inicio']}-{horario['hora_fin']} (intervalo: {h.intervalo_minutos}min)")
-
-        # Reglas
-        for regla in data.get('reglas', []):
-            r = ReglaCancha(
-                cancha_id=cancha.id,
-                regla=regla['regla'],
-            )
-            db.session.add(r)
-            print(f"📏 Regla agregada: {regla['regla']}")
-
-        # Amenidades
-        for amenidad in data.get('amenidades', []):
-            a = AmenidadCancha(
-                cancha_id=cancha.id,
-                amenidad=amenidad['amenidad'],
-            )
-            db.session.add(a)
-            print(f"🏆 Amenidad agregada: {amenidad['amenidad']}")
+        # Horarios, reglas y amenidades
+        CanchaService._procesar_horarios(data.get('horarios', []), cancha.id)
+        CanchaService._procesar_reglas(data.get('reglas', []), cancha.id)
+        CanchaService._procesar_amenidades(data.get('amenidades', []), cancha.id)
 
         db.session.commit()
         print("✅ Cancha creada exitosamente")
         return cancha
-    
+
+    @staticmethod
+    def _guardar_y_convertir_a_webp(imagen_file, cancha_id):
+        """
+        Guardar imagen y convertir a WebP como archivo
+        """
+        try:
+            # Crear directorios
+            upload_folder = os.path.join(current_app.root_path, 'utils', 'pictures', 'canchas', str(cancha_id))
+            webp_folder = os.path.join(upload_folder, 'webp')
+            os.makedirs(webp_folder, exist_ok=True)
+            
+            # Generar nombres únicos
+            original_filename = secure_filename(imagen_file.filename)
+            name_without_ext = os.path.splitext(original_filename)[0]
+            unique_id = uuid.uuid4().hex
+            
+            # Guardar original temporalmente
+            temp_path = os.path.join(upload_folder, f"temp_{unique_id}_{original_filename}")
+            imagen_file.save(temp_path)
+            
+            try:
+                # Abrir y procesar imagen
+                with Image.open(temp_path) as img:
+                    # Convertir a RGB si es necesario
+                    if img.mode in ('RGBA', 'P'):
+                        img = img.convert('RGB')
+                    
+                    # Redimensionar si es muy grande (máximo 1200px en el lado más largo)
+                    max_size = (1200, 1200)
+                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                    
+                    # Guardar como WebP
+                    webp_filename = f"{unique_id}_{name_without_ext}.webp"
+                    webp_path = os.path.join(webp_folder, webp_filename)
+                    
+                    # Guardar con calidad optimizada
+                    img.save(webp_path, 'WEBP', quality=80, optimize=True)
+                    
+                    # Retornar ruta relativa del WebP para guardar en BD
+                    relative_path = f"/utils/pictures/canchas/{cancha_id}/webp/{webp_filename}"
+                    print(f"🖼️ Imagen convertida a WebP: {original_filename} -> {webp_filename}")
+                    
+                    return relative_path
+                    
+            finally:
+                # Eliminar archivo temporal
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            
+        except Exception as e:
+            print(f"❌ Error al procesar imagen: {str(e)}")
+            return None
+
+    @staticmethod
+    def _procesar_horarios(horarios, cancha_id):
+        """Procesar horarios de la cancha"""
+        for horario in horarios:
+            if 'hora_inicio' in horario and 'hora_fin' in horario:
+                h = HorarioCancha(
+                    cancha_id=cancha_id,
+                    dia_semana=horario['dia_semana'],
+                    hora_inicio=datetime.strptime(horario['hora_inicio'], '%H:%M').time(),
+                    hora_fin=datetime.strptime(horario['hora_fin'], '%H:%M').time(),
+                    intervalo_minutos=horario.get('intervalo_minutos', 60),
+                    disponible=horario.get('disponible', True)
+                )
+                db.session.add(h)
+
+    @staticmethod
+    def _procesar_reglas(reglas, cancha_id):
+        """Procesar reglas de la cancha"""
+        for regla in reglas:
+            r = ReglaCancha(cancha_id=cancha_id, regla=regla['regla'])
+            db.session.add(r)
+
+    @staticmethod
+    def _procesar_amenidades(amenidades, cancha_id):
+        """Procesar amenidades de la cancha"""
+        for amenidad in amenidades:
+            a = AmenidadCancha(cancha_id=cancha_id, amenidad=amenidad['amenidad'])
+            db.session.add(a)
+
+    @staticmethod
+    def obtener_todas_las_canchas():
+        """Obtener todas las canchas con URLs de imágenes WebP y horarios"""
+        print("🔍 Obteniendo todas las canchas activas")
+        canchas = Cancha.query.filter_by(estado='activa').all()
+        print(f"✅ Encontradas {len(canchas)} canchas activas")
+        
+        canchas_dict = []
+        for cancha in canchas:
+            cancha_data = {
+                'id': cancha.id,
+                'nombre': cancha.nombre,
+                'tipo': cancha.tipo,
+                'subtipo': cancha.subtipo,
+                'direccion': cancha.direccion,
+                'latitud': cancha.latitud,
+                'longitud': cancha.longitud,
+                'direccion_completa': cancha.direccion_completa,
+                'superficie': cancha.superficie,
+                'capacidad': cancha.capacidad,
+                'precio_hora': float(cancha.precio_hora) if cancha.precio_hora else None,
+                'descripcion': cancha.descripcion,
+                'estado': cancha.estado,
+                'imagenes_webp': [],  # ✅ URLs de archivos WebP
+                'horarios': [],       # ✅ Horarios de la cancha
+                'reglas': [],         # ✅ Reglas de la cancha
+                'amenidades': []      # ✅ Amenidades de la cancha
+            }
+            
+            # Procesar imágenes como URLs WebP
+            for img in cancha.imagenes:
+                if img.url_imagen.startswith('/utils/pictures/'):
+                    # Es una imagen local WebP
+                    cancha_data['imagenes_webp'].append({
+                        'id': img.id,
+                        'orden': img.orden,
+                        'url_webp': CanchaService._construir_url_accesible(img.url_imagen, cancha.id),
+                        'nombre': os.path.basename(img.url_imagen),
+                        'formato': 'webp'
+                    })
+                else:
+                    # Es una URL externa
+                    cancha_data['imagenes_webp'].append({
+                        'id': img.id,
+                        'orden': img.orden,
+                        'url': img.url_imagen,
+                        'formato': 'externo'
+                    })
+            
+            # ✅ Procesar horarios
+            for horario in cancha.horarios:
+                cancha_data['horarios'].append({
+                    'id': horario.id,
+                    'dia_semana': horario.dia_semana,
+                    'hora_inicio': horario.hora_inicio.strftime('%H:%M') if horario.hora_inicio else None,
+                    'hora_fin': horario.hora_fin.strftime('%H:%M') if horario.hora_fin else None,
+                    'intervalo_minutos': horario.intervalo_minutos,
+                    'disponible': horario.disponible
+                })
+            
+            # ✅ Procesar reglas
+            for regla in cancha.reglas:
+                cancha_data['reglas'].append({
+                    'id': regla.id,
+                    'regla': regla.regla
+                })
+            
+            # ✅ Procesar amenidades
+            for amenidad in cancha.amenidades:
+                cancha_data['amenidades'].append({
+                    'id': amenidad.id,
+                    'amenidad': amenidad.amenidad
+                })
+            
+            canchas_dict.append(cancha_data)
+        
+        return canchas_dict
+
+    @staticmethod
+    def _construir_url_accesible(ruta_imagen, cancha_id):
+        """
+        Construir URL accesible para archivo WebP
+        """
+        filename = os.path.basename(ruta_imagen)
+        return f"/cancha/{cancha_id}/imagen-webp/{filename}"
 
     @staticmethod
     def obtener_cancha_por_id(cancha_id):
@@ -96,15 +252,7 @@ class CanchaService:
         else:
             print("❌ Cancha no encontrada")
         return cancha
-
-    @staticmethod
-    def obtener_todas_las_canchas():
-        print("🔍 Obteniendo todas las canchas activas")
-        canchas = Cancha.query.filter_by(estado='activa').all()
-        print(f"✅ Encontradas {len(canchas)} canchas activas")
-        return canchas
     
-
     @staticmethod
     def obtener_horarios_disponibles(cancha_id: int, fecha_str: str):
         print(f"🔍 Obteniendo horarios disponibles para cancha {cancha_id} en fecha {fecha_str}")
@@ -212,3 +360,5 @@ class CanchaService:
         minutos_desde_inicio = tiempo_desde_inicio.total_seconds() / 60
         
         return minutos_desde_inicio % intervalo_minutos == 0
+    
+    

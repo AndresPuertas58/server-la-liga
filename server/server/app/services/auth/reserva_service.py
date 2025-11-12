@@ -220,8 +220,7 @@ class ReservaService:
                         'capacidad': reserva.cancha.capacidad,
                         'precio_hora': float(reserva.cancha.precio_hora) if reserva.cancha.precio_hora else None,
                         'descripcion': reserva.cancha.descripcion,
-                        'estado': reserva.cancha.estado,
-                        'imagenes': [img.url_imagen for img in reserva.cancha.imagenes] if reserva.cancha.imagenes else []
+                        'estado': reserva.cancha.estado
                     }
                 
                 reservas_formateadas.append(reserva_info)

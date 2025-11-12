@@ -54,14 +54,70 @@ server_error_model = auth_ns.model('ServerError', {
     'error': fields.String(description='Mensaje de error del servidor', example='Error al verificar sesión')
 })
 
-# Modelo para el perfil del jugador
+# ✅ NUEVOS MODELOS PARA PROFILE CON FOTOS
+
+# Modelo para el perfil del jugador (para PUT)
 player_profile_model = player_ns.model('PlayerProfile', {
-    'telephone': fields.String(required=True, example='+1234567890'),
-    'city': fields.String(required=True, example='Ciudad de México'),
-    'sport': fields.String(required=True, example='Fútbol'),
-    'position': fields.String(required=True, example='Delantero'),
-    'biography': fields.String(required=False, example='Soy un jugador apasionado...'),
-    'profilePicture': fields.String(required=False, example='https://example.com/photo.jpg')
+    'telephone': fields.String(required=True, description='Teléfono del jugador'),
+    'city': fields.String(required=True, description='Ciudad del jugador'),
+    'sport': fields.String(required=True, description='Deporte que practica'),
+    'position': fields.String(required=True, description='Posición en el deporte'),
+    'biography': fields.String(description='Biografía del jugador'),
+    'profilePicture': fields.String(description='URL de la foto de perfil'),
+    'urlphotoperfil': fields.String(description='URL alternativa de foto de perfil')
+})
+
+# Modelo para respuesta del perfil completo
+player_profile_response = player_ns.model('PlayerProfileResponse', {
+    'message': fields.String(description='Mensaje de confirmación'),
+    'user': fields.Raw(description='Datos del usuario actualizado')
+})
+
+# Modelo para respuesta de foto de perfil
+profile_picture_response = player_ns.model('ProfilePictureResponse', {
+    'message': fields.String(description='Mensaje de confirmación'),
+    'url_imagen': fields.String(description='URL interna de la imagen'),
+    'url_accesible': fields.String(description='URL accesible para el frontend')
+})
+
+# Modelo para información básica del usuario (pública)
+user_basic_info_model = player_ns.model('UserBasicInfo', {
+    'id': fields.Integer(description='ID del usuario'),
+    'name_user': fields.String(description='Nombre del usuario'),
+    'sport': fields.String(description='Deporte'),
+    'position': fields.String(description='Posición'),
+    'edad': fields.Integer(description='Edad calculada'),
+    'city': fields.String(description='Ciudad'),
+    'urlphotoperfil': fields.String(description='URL de la foto de perfil'),
+    'is_profile_completed': fields.Boolean(description='Perfil completado')
+})
+
+# Modelo para foto de perfil
+profile_picture_model = player_ns.model('ProfilePicture', {
+    'url_imagen': fields.String(description='URL de la imagen de perfil'),
+    'url_accesible': fields.String(description='URL accesible para el frontend'),
+    'message': fields.String(description='Mensaje de confirmación')
+})
+
+# Modelo para perfil de usuario completo
+user_profile_complete_model = player_ns.model('UserProfileComplete', {
+    'id': fields.Integer(description='ID del usuario'),
+    'email': fields.String(description='Email del usuario'),
+    'name_user': fields.String(description='Nombre del usuario'),
+    'edad': fields.Integer(description='Edad calculada'),
+    'fechanacimiento': fields.String(description='Fecha de nacimiento'),
+    'terms': fields.Boolean(description='Términos aceptados'),
+    'is_profile_completed': fields.Boolean(description='Perfil completado'),
+    'status': fields.String(description='Estado del usuario'),
+    'created_at': fields.String(description='Fecha de creación'),
+    'updated_at': fields.String(description='Fecha de actualización'),
+    'telephone': fields.String(description='Teléfono'),
+    'city': fields.String(description='Ciudad'),
+    'sport': fields.String(description='Deporte'),
+    'position': fields.String(description='Posición'),
+    'biography': fields.String(description='Biografía'),
+    'urlphotoperfil': fields.String(description='URL de la foto de perfil'),
+    'role': fields.String(description='Rol del usuario')
 })
 
 # MODELO configuracion (cambio contraseña y email)
@@ -226,10 +282,44 @@ cancha_creada_response_model = cancha_ns.model('CanchaCreadaResponse', {
     'cancha': fields.Nested(cancha_response_model)
 })
 
-# Modelo para error de validación (NUEVO)
+# Modelo para error de validación (ACTUALIZADO)
 cancha_error_model = cancha_ns.model('CanchaError', {
-    'error': fields.String(example='Error en la validación de datos')
+    'error': fields.String(description='Mensaje de error', example='Error en la validación de datos'),
+    'codigo': fields.String(description='Código de error', example='VALIDACION_FALLIDA')
 })
+
+# Modelo para imagen en base64
+imagen_base64_model = cancha_ns.model('ImagenBase64', {
+    'id': fields.Integer,
+    'orden': fields.Integer,
+    'data': fields.String(description='Imagen en formato base64'),
+    'nombre': fields.String,
+    'tipo': fields.String(enum=['local', 'externo'])
+})
+
+# Modelo extendido para respuesta con base64
+cancha_response_base64_model = cancha_ns.model('CanchaResponseBase64', {
+    'id': fields.Integer,
+    'nombre': fields.String,
+    'tipo': fields.String,
+    'subtipo': fields.String,
+    'direccion': fields.String,
+    'latitud': fields.Float,
+    'longitud': fields.Float,
+    'direccion_completa': fields.String,
+    'superficie': fields.String,
+    'capacidad': fields.Integer,
+    'precio_hora': fields.Float,
+    'descripcion': fields.String,
+    'estado': fields.String,
+    'owner_id': fields.Integer,
+    'imagenes': fields.List(fields.String, description='URLs de imágenes'),
+    'imagenes_base64': fields.List(fields.Nested(imagen_base64_model), description='Imágenes en base64'),
+    'horarios': fields.List(fields.Nested(horario_response_model)),
+    'reglas': fields.List(fields.Nested(regla_model)),
+    'amenidades': fields.List(fields.Nested(amenidad_model))
+})
+
 # 🎯 Modelos para Swagger - Reservas (ACTUALIZADOS)
 reserva_model = reserva_ns.model('Reserva', {
     'cancha_id': fields.Integer(required=True, example=1),
@@ -422,21 +512,30 @@ conflicto_reserva_model = reserva_ns.model('ConflictoReserva', {
 from app.controllers.auth.register_controller import Register
 from app.controllers.auth.login_controller import Login 
 from app.controllers.auth.logout_controller import Logout
-from app.controllers.auth.profile_controller import PlayerProfile
+from app.controllers.auth.profile_controller import (
+    PlayerProfileById, 
+    PlayerProfile, 
+    PlayerProfilePicture, 
+    UserImagenPerfilResource, 
+    UserBasicInfo
+)
 from app.controllers.auth.post_controller import Posts, PostDetail, PostComentarios, PostLike, ComentarioLike, MisPosts, MisLikes, obtenerpost
 from app.controllers.auth.account_controller import CambioContrasena, CambioCorreo
 from app.controllers.auth.cancha_controller import CanchaCreateResource, CanchaListResource, CanchaDetailResource, HorariosDisponiblesResource
-from app.controllers.auth.reserva_controller import CrearReservaController, HorariosOcupadosController, VerificarReservaUsuario, MisReservasController, CancelarReservaController  # ✅ Agregado CancelarReservaController
+from app.controllers.auth.reserva_controller import CrearReservaController, HorariosOcupadosController, VerificarReservaUsuario, MisReservasController, CancelarReservaController
 from app.controllers.auth.check_controller import CheckSession
 
 # 📤 Exportar lo necesario
 __all__ = [
+    # Namespaces
     'auth_ns',
     'player_ns',
     'account_ns',
     'posts_ns',
     'cancha_ns',
     'reserva_ns',
+    
+    # Modelos de autenticación
     'register_model',
     'login_model',
     'token_data_model',
@@ -444,34 +543,76 @@ __all__ = [
     'check_session_error_model',
     'check_session_unauthorized_model',
     'server_error_model',
+    
+    # ✅ NUEVOS MODELOS DE PROFILE
     'player_profile_model',
+    'player_profile_response',
+    'profile_picture_response', 
+    'user_basic_info_model',
+    'profile_picture_model',
+    'user_profile_complete_model',
+    
+    # Modelos de cuenta
     'cambio_contrasena_model',
     'cambio_correo_model',
     'verify_email_model',
     'resend_code_model',
+    
+    # Modelos de posts
     'post_model',
     'post_update_model',
     'comentario_model',
     'pagination_model',
     'post_response_model',
     'comentario_response_model',
+    
+    # Modelos de canchas
     'horario_model',
     'regla_model',
     'amenidad_model',
     'cancha_model',
     'cancha_response_model',
     'horarios_disponibles_model',
+    'cancha_creada_response_model',
+    'cancha_error_model',
+    'horario_response_model',
+    'imagen_base64_model',
+    'cancha_response_base64_model',
+    
+    # Modelos de reservas
     'reserva_model',
     'reserva_response_model',
+    'reserva_creada_response_model',
     'horarios_ocupados_response',
     'reserva_verificada_model',
     'tiene_reserva_model',
-    'reserva_cancelada_response_model',  # ✅ Nuevo modelo
-    'error_response_model',  # ✅ Nuevo modelo
+    'reserva_cancelada_response_model',
+    'reserva_error_model',
+    'horarios_ocupados_detallados_model',
+    'reserva_verificada_detallada_model',
+    'reserva_usuario_model',
+    'lista_reservas_usuario_model',
+    'reserva_usuario_completa_model',
+    
+    # Modelos de error generales
+    'error_response_model',
+    'disponibilidad_horario_model',
+    'conflicto_reserva_model',
+    
+    # Controladores de autenticación
     'Register',
     'Login',
     'Logout',
-    'PlayerProfile',
+    'CheckSession',
+    
+    # ✅ NUEVOS CONTROLADORES DE PROFILE
+    'PlayerProfileById',
+    'PlayerProfile', 
+    'PlayerProfilePicture',
+    'UserImagenPerfilResource',
+    'UserBasicInfo',
+    
+    # Controladores de posts
     'Posts',
     'PostDetail',
     'PostComentarios', 
@@ -480,16 +621,21 @@ __all__ = [
     'MisPosts',
     'MisLikes',
     'obtenerpost',
+    
+    # Controladores de cuenta
     'CambioContrasena',
     'CambioCorreo',
+    
+    # Controladores de canchas
     'CanchaCreateResource',
     'CanchaListResource',
     'CanchaDetailResource',
     'HorariosDisponiblesResource',
+    
+    # Controladores de reservas
     'CrearReservaController',
     'HorariosOcupadosController',
     'VerificarReservaUsuario',
     'MisReservasController',
-    'CancelarReservaController',  # ✅ Nuevo controlador
-    'CheckSession'
+    'CancelarReservaController'
 ]
